@@ -1,5 +1,5 @@
-google-genai==2.3.0
-faiss-cpu==1.13.2
-PyMuPDF==1.27.2.3
-python-dotenv==1.2.2
-numpy==2.4.4
+google-genai
+faiss-cpu
+PyMuPDF
+python-dotenv
+numpy

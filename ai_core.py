@@ -73,7 +73,7 @@ class LawyerCityAI:
             return
         pdfs = list(pdf_dir.glob("**/*.pdf"))
         if not pdfs:
-            return
+            return  
         for pdf in pdfs:
             self._doc_processor.ingest_pdf(str(pdf))
 

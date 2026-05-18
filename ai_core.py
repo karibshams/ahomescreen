@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 
@@ -55,14 +56,26 @@ class LawyerCityAI:
 
     def __init__(self):
         self._client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        self._gen_model = os.getenv("GENERATION_MODEL", "gemini-1.5-pro")
-        self.top_k = int(os.getenv("TOP_K_CHUNKS", 6))
-        self.low_conf_threshold = float(os.getenv("LOW_CONFIDENCE_THRESHOLD", 0.75))
+        self._gen_model = os.getenv("GENERATION_MODEL", "gemini-2.5-pro")
+        self.top_k = int(os.getenv("TOP_K_CHUNKS", 8))
+        self.low_conf_threshold = float(os.getenv("LOW_CONFIDENCE_THRESHOLD", 0.70))
         self._doc_processor = DocumentProcessor()
         self._session_manager = SessionManager(
             max_history=int(os.getenv("MAX_SESSION_HISTORY", 10))
         )
         self._lang_detector = LanguageDetector()
+        self._auto_ingest()
+
+    def _auto_ingest(self) -> None:
+        pdf_dir = Path(os.getenv("PDF_DIRECTORY", "./pdfs"))
+        if not pdf_dir.exists():
+            pdf_dir.mkdir(parents=True)
+            return
+        pdfs = list(pdf_dir.glob("**/*.pdf"))
+        if not pdfs:
+            return
+        for pdf in pdfs:
+            self._doc_processor.ingest_pdf(str(pdf))
 
     def chat(self, session_id: str, query: str) -> dict:
         language = self._lang_detector.detect(query)
@@ -80,7 +93,6 @@ class LawyerCityAI:
         }
 
     def ingest(self, path: str) -> dict | list:
-        from pathlib import Path
         return (self._doc_processor.ingest_directory(path)
                 if Path(path).is_dir()
                 else self._doc_processor.ingest_pdf(path))
@@ -157,6 +169,8 @@ class LawyerCityAI:
 
 
 if __name__ == "__main__":
+    import json
+
     ai = LawyerCityAI()
     session_id = "test_session"
 
@@ -179,7 +193,6 @@ if __name__ == "__main__":
             print("Session cleared.")
             continue
         if query.lower() == "stats":
-            import json
             print(json.dumps(ai.get_stats(), indent=2))
             continue
 

@@ -20,8 +20,8 @@ class DocumentProcessor:
         self.embedding_model = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
         self.faiss_index_path = Path(os.getenv("FAISS_INDEX_PATH", "./faiss_store/index.faiss"))
         self.metadata_path = Path(os.getenv("FAISS_METADATA_PATH", "./faiss_store/metadata.json"))
-        self.chunk_size = int(os.getenv("CHUNK_SIZE", 800))
-        self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", 100))
+        self.chunk_size = int(os.getenv("CHUNK_SIZE", 1000))
+        self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", 150))
         self._index: faiss.IndexFlatIP | None = None
         self._metadata: list[dict] = []
         self._load_or_create_index()
@@ -56,7 +56,7 @@ class DocumentProcessor:
                 results.append({"source": pdf.name, "status": "error", "error": str(e)})
         return results
 
-    def retrieve(self, query_embedding: np.ndarray, top_k: int = 6) -> list[dict]:
+    def retrieve(self, query_embedding: np.ndarray, top_k: int = 8) -> list[dict]:
         if self._index is None or self._index.ntotal == 0:
             return []
         k = min(top_k, self._index.ntotal)

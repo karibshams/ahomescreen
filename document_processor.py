@@ -20,26 +20,41 @@ class DocumentProcessor:
         self.embedding_model = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
         self.faiss_index_path = Path(os.getenv("FAISS_INDEX_PATH", "./faiss_store/index.faiss"))
         self.metadata_path = Path(os.getenv("FAISS_METADATA_PATH", "./faiss_store/metadata.json"))
+        self.indexed_files_path = Path(os.getenv("FAISS_INDEX_PATH", "./faiss_store/index.faiss")).parent / "indexed_files.json"
         self.chunk_size = int(os.getenv("CHUNK_SIZE", 1000))
         self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", 150))
         self._index: faiss.IndexFlatIP | None = None
         self._metadata: list[dict] = []
+        self._indexed_files: set[str] = set()
         self._load_or_create_index()
+
+    def is_already_indexed(self, pdf_path: str) -> bool:
+        return Path(pdf_path).name in self._indexed_files
 
     def ingest_pdf(self, pdf_path: str) -> dict:
         pdf_path = Path(pdf_path)
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
         source_name = pdf_path.name
+
+        if source_name in self._indexed_files:
+            return {"source": source_name, "pages_processed": 0,
+                    "chunks_added": 0, "status": "already_indexed"}
+
         pages = self._extract_text(pdf_path)
         chunks = self._chunk_pages(pages, source_name)
         existing_hashes = {m.get("hash") for m in self._metadata}
         new_chunks = [c for c in chunks if c["hash"] not in existing_hashes]
+
         if not new_chunks:
+            self._indexed_files.add(source_name)
+            self._persist_indexed_files()
             return {"source": source_name, "pages_processed": len(pages),
                     "chunks_added": 0, "status": "already_indexed"}
+
         embeddings = self._embed_chunks(new_chunks)
         self._add_to_index(embeddings, new_chunks)
+        self._indexed_files.add(source_name)
         self._persist()
         return {"source": source_name, "pages_processed": len(pages),
                 "chunks_added": len(new_chunks), "status": "success"}
@@ -88,6 +103,7 @@ class DocumentProcessor:
         return {
             "total_chunks": self._index.ntotal if self._index else 0,
             "total_documents": len(sources),
+            "indexed_files": list(self._indexed_files),
             "documents": sources
         }
 
@@ -149,7 +165,18 @@ class DocumentProcessor:
             self._index = faiss.IndexFlatIP(self.EMBEDDING_DIM)
             self._metadata = []
 
+        if self.indexed_files_path.exists():
+            with open(self.indexed_files_path, "r", encoding="utf-8") as f:
+                self._indexed_files = set(json.load(f))
+        else:
+            self._indexed_files = set()
+
     def _persist(self) -> None:
         faiss.write_index(self._index, str(self.faiss_index_path))
         with open(self.metadata_path, "w", encoding="utf-8") as f:
             json.dump(self._metadata, f, ensure_ascii=False, indent=2)
+        self._persist_indexed_files()
+
+    def _persist_indexed_files(self) -> None:
+        with open(self.indexed_files_path, "w", encoding="utf-8") as f:
+            json.dump(list(self._indexed_files), f, ensure_ascii=False, indent=2)

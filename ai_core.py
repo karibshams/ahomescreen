@@ -73,9 +73,10 @@ class LawyerCityAI:
             return
         pdfs = list(pdf_dir.glob("**/*.pdf"))
         if not pdfs:
-            return  
+            return
         for pdf in pdfs:
-            self._doc_processor.ingest_pdf(str(pdf))
+            if not self._doc_processor.is_already_indexed(str(pdf)):
+                self._doc_processor.ingest_pdf(str(pdf))
 
     def chat(self, session_id: str, query: str) -> dict:
         language = self._lang_detector.detect(query)
@@ -202,6 +203,3 @@ if __name__ == "__main__":
             print("\nSources:")
             for s in result["sources"]:
                 print(f"  • {s['source']} — Page {s['page']} (score: {s['score']})")
-
-
-#GENERATION_MODEL=gemini-2.0-flash   ← free, fast, good quality

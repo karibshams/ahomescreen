@@ -202,3 +202,6 @@ if __name__ == "__main__":
             print("\nSources:")
             for s in result["sources"]:
                 print(f"  • {s['source']} — Page {s['page']} (score: {s['score']})")
+
+
+#GENERATION_MODEL=gemini-2.0-flash   ← free, fast, good quality

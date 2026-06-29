@@ -111,11 +111,11 @@ class LawyerCityAI:
 
     def _retrieve_context(self, query: str, language: str) -> list[dict]:
         query_emb = self._doc_processor.embed_text(query)
-        results = self._doc_processor.retrieve(query_emb, top_k=self.top_k)
+        results = self._doc_processor.retrieve(query_emb, query, top_k=self.top_k)
         if language in ("amharic", "mixed") and self._low_confidence(results):
             en_query = self._translate_to_english(query)
             en_emb = self._doc_processor.embed_text(en_query)
-            fallback = self._doc_processor.retrieve(en_emb, top_k=self.top_k)
+            fallback = self._doc_processor.retrieve(en_emb, en_query, top_k=self.top_k)
             results = self._merge(results, fallback)
         return results
 

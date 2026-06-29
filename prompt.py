@@ -17,8 +17,10 @@ ACCURACY RULES:
 - NEVER answer questions unrelated to Ethiopian law.
 
 CITATION RULES:
-- Always cite the source document name and page/article number at the end.
-- Format: [Source: Document Name, Page X]
+- Always cite the source at the end of your answer.
+- If article number is available: [Source: Document Name, Article X, Page Y]
+- If no article number: [Source: Document Name, Page Y]
+- If multiple sources contributed, list all of them.
 """
 
     OUT_OF_SCOPE_EN = (
@@ -56,9 +58,11 @@ CITATION RULES:
             return "No relevant context found in the legal documents."
         parts = []
         for i, c in enumerate(chunks, 1):
-            parts.append(
-                f"[Chunk {i} | Source: {c.get('source', 'Unknown')} | Page: {c.get('page', 'N/A')}]\n{c.get('text', '')}"
-            )
+            article = c.get("article")
+            ref = f"Source: {c.get('source', 'Unknown')} | Page: {c.get('page', 'N/A')}"
+            if article:
+                ref = f"Source: {c.get('source', 'Unknown')} | {article} | Page: {c.get('page', 'N/A')}"
+            parts.append(f"[Chunk {i} | {ref}]\n{c.get('text', '')}")
         return "\n\n".join(parts)
 
     @staticmethod

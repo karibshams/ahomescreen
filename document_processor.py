@@ -250,9 +250,7 @@ class DocumentProcessor:
         return embeddings
 
     def _add_to_index(self, embeddings: np.ndarray, chunks: list[dict]) -> None:
-        if hasattr(self._index, 'is_trained') and not self._index.is_trained:
-            self._index.train(embeddings)
-        self._index.add(embeddings)
+        # Add metadata first
         for c in chunks:
             self._metadata.append({
                 "text": c["text"],
@@ -262,6 +260,23 @@ class DocumentProcessor:
                 "hash": c["hash"]
             })
 
+        # Auto-upgrade: switch from FlatIP to IVFFlat once 256+ chunks are available
+        is_ivf = isinstance(self._index, faiss.IndexIVFFlat)
+        if not is_ivf and len(self._metadata) >= 256:
+            all_embeddings = np.vstack([embeddings]).astype(np.float32)
+            # Collect all existing vectors from flat index
+            if self._index.ntotal > 0:
+                existing = faiss.rev_swig_ptr(self._index.get_xb(), self._index.ntotal * self.EMBEDDING_DIM)
+                existing = np.array(existing).reshape(self._index.ntotal, self.EMBEDDING_DIM).astype(np.float32)
+                all_embeddings = np.vstack([existing, embeddings]).astype(np.float32)
+            quantizer = faiss.IndexFlatIP(self.EMBEDDING_DIM)
+            new_index = faiss.IndexIVFFlat(quantizer, self.EMBEDDING_DIM, 256)
+            new_index.train(all_embeddings)
+            new_index.add(all_embeddings)
+            self._index = new_index
+        else:
+            self._index.add(embeddings)
+
     def _load_or_create_index(self) -> None:
         self.faiss_index_path.parent.mkdir(parents=True, exist_ok=True)
         if self.faiss_index_path.exists() and self.metadata_path.exists():
@@ -270,8 +285,8 @@ class DocumentProcessor:
                 self._metadata = json.load(f)
             self._rebuild_bm25()
         else:
-            quantizer = faiss.IndexFlatIP(self.EMBEDDING_DIM)
-            self._index = faiss.IndexIVFFlat(quantizer, self.EMBEDDING_DIM, 256)
+            # Start with FlatIP — auto-upgrades to IVFFlat once 256+ chunks exist
+            self._index = faiss.IndexFlatIP(self.EMBEDDING_DIM)
             self._metadata = []
 
         if self.indexed_files_path.exists():
